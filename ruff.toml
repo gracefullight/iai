@@ -23,6 +23,7 @@ ignore = [
     "D203",   # one-blank-line-before-class
     "D213",   # multi-line-summary-second-line
     "COM812", # trailing-comma-missing (conflicts with formatter)
+    "T201",
 ]
 
 [lint.isort]
