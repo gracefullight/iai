@@ -149,6 +149,72 @@ def ucs_path(graph: nx.Graph, start: str, goal: str) -> list[str] | None:
     return None  # Return None if no path is found
 
 
+def my_astar_path(graph: nx.Graph, start: str, goal: str) -> list[str] | None:
+    """Find a path from start to goal using A star Search algorithm."""
+    # Check the start node
+    print(f"start node: {start}")
+
+    pq: PriorityQueue[tuple[str, list[str]]] = PriorityQueue()
+    pq.push((start, [start]), 0 + heuristic(cities[start], cities[goal]))
+    visited: set[str] = set()
+
+    index = 0
+    while not pq.is_empty():
+        print(f"Interation {index}")
+        # Check the highest priority node in the frontier before expansion if the frontie is not empty
+        print(
+            "A new expansion. Element with the highest priority in the frontier before expansions:"
+        )
+        print(pq.peek())
+
+        (vertex, path) = pq.pop()
+        index = index + 1
+
+        # Check the node chosen to expand
+        print(f"Node chosen to expand: {vertex}")
+
+        # Check the frontier after removing a node to expand
+        if not (pq.is_empty()):
+            print(
+                f"Element with the highest priority in the frontie after removing a node {vertex} to expand:"
+            )
+            print(pq.peek())
+        else:
+            print("frontie is empty")
+
+        if vertex in visited:
+            continue
+        visited.add(vertex)
+
+        # Check the closed list again after adding a node, visited
+        print(f"Elements in the closed list after adding a node {vertex}:")
+        for element in visited:
+            print(element)
+
+        if vertex == goal:
+            return path
+
+        for neighbor in graph[vertex]:
+            # print("neighbor is ", neighbor)
+            if neighbor in visited:
+                continue
+            next_path = [*path, neighbor]
+            f_cost = nx.path_weight(graph, next_path, "weight") + heuristic(
+                cities[neighbor], cities[goal]
+            )
+            pq.push((neighbor, next_path), f_cost)
+
+            # Check the frontier after adding a node
+            print(
+                "Element with the highest priority in the frontie after adding a neighbour "
+                "node "
+                f"{neighbor}:"
+            )
+            print(pq.peek())
+
+    return None  # Return None if no path is found
+
+
 df_cities = pd.read_csv(get_path("cities_coordinates.csv"))
 df_matrix = pd.read_csv(get_path("cities_correlation_matrix.csv"))
 
@@ -205,4 +271,8 @@ print("=" * 80)
 
 path = ucs_path(G, source, goal)
 print("Path from source node to goal node using UCS algorithm:", path)
+print("=" * 80)
+
+path = my_astar_path(G, source, goal)
+print("Path from source node to goal node using A* algorithm:", path)
 print("=" * 80)
