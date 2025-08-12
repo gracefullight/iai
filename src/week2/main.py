@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -215,6 +216,136 @@ def my_astar_path(graph: nx.Graph, start: str, goal: str) -> list[str] | None:
     return None  # Return None if no path is found
 
 
+def bfs_path(graph: nx.Graph, start: str, goal: str) -> list[str] | None:
+    """Find a path in G from start to goal using breadth-First Search."""
+    # Check the start node
+    print(f"start node: {start}")
+
+    queue: deque[tuple[str, list[str]]] = deque([(start, [start])])
+
+    visited: set[str] = set()
+    index = 0
+    while queue:
+        print(f"iteration {index}")
+        # Check the frontier, which is queue, before expansion
+        print("A new expansion. Elements in the frontie before expansion:")
+        for i in range(len(queue)):
+            print(queue[i])
+
+        (vertex, current_path) = queue.popleft()
+        index = index + 1
+
+        # Check the node chosen to expand
+        print(f"Node chosen to expand: {vertex}")
+
+        # Check the frontier after removing a node to expand
+        print(f"Elements in the frontie after removing a node {vertex} to expand:")
+        for i in range(len(queue)):
+            print(queue[i])
+
+        if vertex in visited:
+            continue
+
+        visited.add(vertex)
+
+        # Check the closed list again after adding a node, visited
+        print(f"Elements in the closed list after adding a node {vertex}:")
+        for element in visited:
+            print(element)
+
+        new_nodes: list[str] = []
+        for element in graph.neighbors(vertex):
+            new_nodes.append(element)
+        new_nodes.sort()
+
+        for neighbor in new_nodes:
+            flag = True
+            print("neighbor is ", neighbor)
+
+            if neighbor in visited:
+                continue
+            if neighbor == goal:
+                return [*current_path, neighbor]
+
+            for node in queue:
+                if neighbor == node[0]:
+                    flag = False
+            if flag:
+                queue.append((neighbor, [*current_path, neighbor]))
+
+            # Check the frontier after adding a node
+            print(f"Elements in the frontie after processing a neighbour node {neighbor}:")
+            for i in range(len(queue)):
+                print(queue[i])
+
+    return None  # Return None if no path is found
+
+
+def dfs_path(graph: nx.Graph, start: str, goal: str) -> list[str] | None:
+    """Find a path from start to goal using Depth-First Search."""
+    # Check the start node
+    print(f"start node: {start}")
+
+    stack: deque[tuple[str, list[str]]] = deque([(start, [start])])
+    visited: set[str] = set()
+
+    index = 0
+    while stack:
+        print(f"Interation {index}")
+        # Check the frontier, which is stack, before expansion
+        print("A new expansion. Elements in the frontie before expansion:")
+        for i in range(len(stack)):
+            print(stack[i])
+
+        (vertex, path) = stack.pop()
+        index = index + 1
+        # Check the node chosen to expand
+        print(f"Node chosen to expand: {vertex}")
+
+        # Check the frontier after removing a node to expand
+        print(f"Elements in the frontie after removing a node {vertex} to expand:")
+        for i in range(len(stack)):
+            print(stack[i])
+
+        if vertex in visited:
+            continue
+        visited.add(vertex)
+
+        # Check the closed list again after adding a node, visited
+        print(f"Elements in the closed list after adding a node {vertex}:")
+        for element in visited:
+            print(element)
+
+        new_nodes: list[str] = []
+        for element in graph.neighbors(vertex):
+            new_nodes.append(element)
+        new_nodes.sort()
+        new_nodes.reverse()
+
+        for neighbor in new_nodes:
+            flag = True
+            print("neighbor is ", neighbor)
+            if neighbor in visited:
+                continue
+            if (
+                neighbor == goal
+            ):  # Early goal test which tests whether a node is a goal node before adding it to the frontier.
+                return [*path, neighbor]
+
+            for node in stack:
+                if neighbor == node[0]:
+                    flag = False
+            if flag:
+                stack.append((neighbor, [*path, neighbor]))
+
+            # Check the frontier after adding a node
+            print(f"Elements in the frontie after adding a neighbour node {neighbor}:")
+            for i in range(len(stack)):
+                print(stack[i])
+
+    return None  # Return None if no path is found
+
+
 df_cities = pd.read_csv(get_path("cities_coordinates.csv"))
 df_matrix = pd.read_csv(get_path("cities_correlation_matrix.csv"))
 
@@ -275,4 +406,12 @@ print("=" * 80)
 
 path = my_astar_path(G, source, goal)
 print("Path from source node to goal node using A* algorithm:", path)
+print("=" * 80)
+
+path = bfs_path(G, source, goal)
+print("Path from source node to goal node using BFS algorithm:", path)
+print("=" * 80)
+
+path = dfs_path(G, source, goal)
+print("Path from source node to goal node using DFS algorithm:", path)
 print("=" * 80)
