@@ -10,6 +10,8 @@ from typing import TypeVar
 import numpy as np
 import pandas as pd
 
+from .utils import argmax_random_tie, argmin_random_tie, define_init, probability
+
 T = TypeVar("T")
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 df = pd.read_csv(ASSETS_DIR / "problem_data.csv")
@@ -105,23 +107,6 @@ print(f"The start city is {start_city}.")
 
 
 # PART2 HC
-def shuffled(iterable: Sequence[T]) -> list[T]:
-    """Randomly shuffle a copy of iterable."""
-    items = list(iterable)
-    random.shuffle(items)
-    return items
-
-
-def argmin_random_tie(seq: Sequence[T], key: Callable[[T], float]) -> T:
-    """Return a minimum element of seq based on the key value; break ties at random."""
-    return min(shuffled(seq), key=key)
-
-
-def argmax_random_tie(seq: Sequence[T], key: Callable[[T], float]) -> T:
-    """Return a maximum element of seq; break ties at random."""
-    return max(shuffled(seq), key=key)
-
-
 def hill_climbing(
     city_list: list[str],
     neighbour_function: Callable[[list[str]], list[list[str]]],
@@ -172,13 +157,6 @@ def hill_climbing(
             print(f"new current path is \n{current}")
 
     return (current, cost_fun(current))
-
-
-def define_init(city_list: list[str], start_point: str) -> list[str]:
-    init_citylist = city_list[:]
-    init_citylist.remove(start_point)
-    init_citylist.insert(0, start_point)
-    return init_citylist
 
 
 init = define_init(all_cities, start_city)
@@ -490,3 +468,91 @@ print(f"\nThe final solution is: \n{solution} and \nThe generation is {generatio
 print(
     f"\nThe fitness of the final solution is: {fitness_fun(solution)} and Its cost is: {cost_fun(solution)}"
 )
+
+
+# PART4 SA
+def simulated_annealing(
+    init: list[str],
+    energy: Callable[[list[str]], float],
+    neighbor: Callable[[list[str]], list[list[str]]],
+    schedule: Callable[[], Callable[[int], float]],
+) -> tuple[list[str], float]:
+    """Simulated annealing optimization.
+
+    init: initial solution (path of city names)
+    energy: cost function returning lower-is-better score
+    neighbor: function generating neighbor solutions from current
+    schedule: returns a temperature function T(t) mapping step->temperature
+    """
+    print(f"The initial solution is \n{init}")
+    current = init
+    # for t in range(sys.maxsize):
+    for t in range(10):  # for illustration purpose
+        T = schedule()(t)
+        print(f"\nThe {t}th step and temperature is {T}")
+        if T == 0:
+            break
+        neighbors = neighbor(current)
+
+        if not neighbors:
+            break
+        # next_choice = neighbors
+        next_choice = random.choice(neighbors)
+        print(f"The neighbor solution is \n{next_choice}")
+        delta_e = energy(next_choice) - energy(current)
+        print(
+            f"The energy of neighbor is {energy(next_choice)} and energy of current is {energy(current)} and the difference is {delta_e}"
+        )
+
+        if delta_e < 0:
+            print("neighbour is better than current, swap")
+            current = next_choice
+        else:
+            temp = probability(np.exp(-delta_e / T))
+            if temp is True:
+                print(
+                    "neighbour is not better than current, but random number is less than the predefined probability, also swap"
+                )
+                current = next_choice
+            else:
+                print("No swap!")
+    return (current, energy(current))
+
+
+init = define_init(all_cities, start_city)
+print(init)
+print(cost_fun(init))
+
+
+def exp_schedule(k: int = 20, lam: float = 0.005, limit: int = 10000) -> Callable[[int], float]:
+    return lambda t: (k * np.exp(-lam * t) if t < limit else 0)
+
+
+def energy(
+    state: list[str],
+) -> float:
+    # this is the cost function which calculates the total distances
+    # between city pairs in a solution
+    cost: float = 0.0
+    for i in range(len(state) - 1):
+        cost += distances[state[i]][state[i + 1]]
+    cost += distances[state[0]][state[-1]]
+    return cost
+
+
+def neighbouring_path(current: list[str]) -> list[str]:
+    neighbouring_path = current
+    path_length = len(current)
+    # This line has been removed to eliminate dead code.
+    left = random.randint(1, path_length - 1)
+    right = random.randint(1, path_length - 1)
+    if left > right:
+        left, right = right, left
+    print(f"current path is \n{current} and the cost is {energy(current)}")
+    neighbouring_path[left : right + 1] = reversed(neighbouring_path[left : right + 1])
+    print(f"neighbouring path is \n{neighbouring_path} and the cost is {energy(neighbouring_path)}")
+    return neighbouring_path
+
+
+solution, cost = simulated_annealing(init, energy, generate_k_neighbouring_paths, exp_schedule)
+print(f"The best solution is: \n{solution} and \nThe cost is: {cost}")
