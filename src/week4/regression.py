@@ -1,12 +1,28 @@
 from pathlib import Path
 
+# Define a function MAPE() which takes y as the true value and y_predict as the predicted value and returns the Mean Absolute Percentage Error over the test dateset. One sample's Absolute Percentage Error is calculated as: abs((y-y')*100/y)
+# Use the methods mean() and abs() in numpy
+from typing import Any
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from sklearn import metrics
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
+
+
+def mape(y: np.ndarray[Any, Any], y_predict: np.ndarray[Any, Any]) -> float:
+    return float(np.mean(np.abs((y - y_predict) / y)) * 100)
+
+
+def rmse(y: np.ndarray[Any, Any], y_predict: np.ndarray[Any, Any]) -> float:
+    return float(np.sqrt(np.mean((y - y_predict) ** 2)))
+
 
 # load dataset (same pattern as r-sample.py)
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
@@ -32,7 +48,7 @@ if model_option == 1:
     Call the constructor SVR() to create a SVR object, name it as 'model', by passing the following key parameters:
 
     (i)  'kernel': Specifies the kernel type to be used in the algorithm. possible values are "linear", "poly", "rbf", "sigmoid" and "precomputed".
-         Default is "rbf".
+        Default is "rbf".
     (ii) 'degree': Degree of the polynomial kernel function ("poly"). Must be non-negative. Ignored by all other kernels. Default=3
     (iii) 'gamma': Kernel coefficient for "rbf", "poly" and "sigmoid".
           Possible values are "scale" (1 / (n_features * X.var())) and "auto" (1 / n_features).
@@ -46,6 +62,22 @@ if model_option == 1:
     model = SVR(gamma="auto")
     # Train this model using the training dataset (x_train, y_train).
     model.fit(x_train, y_train)
+
+    # Predicted values of samples in the test dataset
+    y_pred_svr = model.predict(x_test)
+    r2_test_svr = metrics.r2_score(y_test, y_pred_svr)
+    mean_absolute_error_test_svr = metrics.mean_absolute_error(y_test, y_pred_svr)
+
+    print(r2_test_svr)
+    print(mean_absolute_error_test_svr)
+
+    mape_test_svr = mape(y_test, y_pred_svr)
+    print(mape_test_svr)
+
+    rmse_test_svr = rmse(y_test, y_pred_svr)
+    print(rmse_test_svr)
+
+    y_pred = y_pred_svr
 elif model_option == 2:
     # LinearRegression imported at top
 
@@ -57,6 +89,21 @@ elif model_option == 2:
     model = LinearRegression()
     # Train this model using the training dataset (x_train, y_train).
     model.fit(x_train, y_train)
+
+    y_pred_lr = model.predict(x_test)
+    r2_test_lr = metrics.r2_score(y_test, y_pred_lr)
+    mean_absolute_error_test_lr = metrics.mean_absolute_error(y_test, y_pred_lr)
+
+    print(r2_test_lr)
+    print(mean_absolute_error_test_lr)
+
+    mape_test_lr = mape(y_test, y_pred_lr)
+    print(mape_test_lr)
+
+    rmse_test_lr = rmse(y_test, y_pred_lr)
+    print(rmse_test_lr)
+
+    y_pred = y_pred_lr
 elif model_option == 3:
     # KNeighborsRegressor imported at top
 
@@ -74,6 +121,20 @@ elif model_option == 3:
     # Train this model using the training dataset (x_train, y_train).
     model.fit(x_train, y_train)
 
+    y_pred_knn = model.predict(x_test)
+    r2_test_knn = metrics.r2_score(y_test, y_pred_knn)
+    mean_absolute_error_test_knn = metrics.mean_absolute_error(y_test, y_pred_knn)
+
+    print(r2_test_knn)
+    print(mean_absolute_error_test_knn)
+
+    mape_test_knn = mape(y_test, y_pred_knn)
+    print(mape_test_knn)
+
+    rmse_test_knn = rmse(y_test, y_pred_knn)
+    print(rmse_test_knn)
+
+    y_pred = y_pred_knn
 elif model_option == 4:
     # DecisionTreeRegressor imported at top
 
@@ -97,6 +158,21 @@ elif model_option == 4:
     model = DecisionTreeRegressor()
     # Train this DT regressor using the training data set (x_train, y_train).
     model.fit(x_train, y_train)
+
+    y_pred_dt = model.predict(x_test)
+    r2_test_dt = metrics.r2_score(y_test, y_pred_dt)
+    mean_absolute_error_test_dt = metrics.mean_absolute_error(y_test, y_pred_dt)
+
+    print(r2_test_dt)
+    print(mean_absolute_error_test_dt)
+
+    mape_test_dt = mape(y_test, y_pred_dt)
+    print(mape_test_dt)
+
+    rmse_test_dt = rmse(y_test, y_pred_dt)
+    print(rmse_test_dt)
+
+    y_pred = y_pred_dt
 elif model_option == 5:
     # RandomForestRegressor imported at top
 
@@ -119,13 +195,43 @@ elif model_option == 5:
           default value is 'False'. If 'True', an unbiased estimate of the model performance is provided.
     (x) 'max_samples': If bootstrap is True, the number of samples to draw from X to train each base estimator. If None (default), then draw X.shape[0] samples. Default=None
     (xi) "random_state": Controls both the randomness of the bootstrapping of the samples used when building trees (if bootstrap=True) and
-         the sampling of the features to consider when looking for the best split at each node (if max_features < n_features).
-         Default is None.
+        the sampling of the features to consider when looking for the best split at each node (if max_features < n_features).
+        Default is None.
     """
     model = RandomForestRegressor(
         n_estimators=3, max_depth=3, max_features=2, max_samples=100, random_state=12
     )
     # Train this model using the training dataset (x_train, y_train).
     model.fit(x_train, y_train)
+    y_pred_rf = model.predict(x_test)
+    r2_test_rf = metrics.r2_score(y_test, y_pred_rf)
+    mean_absolute_error_test_rf = metrics.mean_absolute_error(y_test, y_pred_rf)
+
+    print(r2_test_rf)
+    print(mean_absolute_error_test_rf)
+
+    mape_test_rf = mape(y_test, y_pred_rf)
+    print(mape_test_rf)
+
+    rmse_test_rf = rmse(y_test, y_pred_rf)
+    print(rmse_test_rf)
+
+    y_pred = y_pred_rf
 else:
     print("invalid option number. Try again")
+
+
+plt.scatter(y_test, y_pred)
+plt.xlabel("y_test")
+plt.ylabel("y_pred")
+plt.show()
+
+
+# Predicted values of samples in the futureSample dataset
+# solution_validate = model.predict()
+# future_sample_X = future_sample_x.values.tolist()
+# future_sample_y = future_sample_y.tolist()
+
+# Display the comparison of the predicted and actual values of samples in the futureSample dataset
+# for i in range (2):
+#     print("For the {} future data, {}, the predicted value is {} and the actual value is {}".format(i, futureSample_X[i], solution_validate[i], futureSample_y[i]))
