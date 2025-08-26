@@ -1,5 +1,3 @@
-from pathlib import Path
-
 # Define a function MAPE() which takes y as the true value and y_predict as the predicted value and returns the Mean Absolute Percentage Error over the test dateset. One sample's Absolute Percentage Error is calculated as: abs((y-y')*100/y)
 # Use the methods mean() and abs() in numpy
 from typing import Any
@@ -8,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.datasets import fetch_california_housing
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
@@ -24,12 +23,14 @@ def rmse(y: np.ndarray[Any, Any], y_predict: np.ndarray[Any, Any]) -> float:
     return float(np.sqrt(np.mean((y - y_predict) ** 2)))
 
 
-# load dataset (same pattern as r-sample.py)
-ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
-data: pd.DataFrame = pd.read_csv(ASSETS_DIR / "HousingData.csv")
+# load dataset: use sklearn's California housing dataset
+dataset = fetch_california_housing()
+data = pd.DataFrame(dataset.data, columns=dataset.feature_names)
 
-x = data[["HouseAge", "HouseSize"]]
-y = data["HousePrice"]
+# use all features from the dataset
+x = data
+# make y a pandas Series so we can use .tail() later
+y = pd.Series(dataset.target, name="HousePrice")
 
 # split into train/test so x_train/y_train are available for model.fit
 x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
@@ -228,10 +229,15 @@ plt.show()
 
 
 # Predicted values of samples in the futureSample dataset
-# solution_validate = model.predict()
-# future_sample_X = future_sample_x.values.tolist()
-# future_sample_y = future_sample_y.tolist()
+# take the last 2 rows of the test set as "future samples"
+future_sample_x = x_test.tail(2)
+future_sample_y = y_test.tail(2).reset_index(drop=True)
+
+solution_validate = model.predict(future_sample_x)
 
 # Display the comparison of the predicted and actual values of samples in the futureSample dataset
-# for i in range (2):
-#     print("For the {} future data, {}, the predicted value is {} and the actual value is {}".format(i, futureSample_X[i], solution_validate[i], futureSample_y[i]))
+for i in range(len(solution_validate)):
+    features = future_sample_x.iloc[i].to_dict()
+    print(
+        f"future #{i}: features={features}, predicted={float(solution_validate[i]):.3f}, actual={float(future_sample_y.iloc[i]):.3f}"
+    )
