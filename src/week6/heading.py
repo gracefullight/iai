@@ -1,12 +1,43 @@
+from __future__ import annotations
+
 import random
 import warnings
 from collections import defaultdict
+from collections.abc import Callable, Mapping
+from pathlib import Path
 
 import ipywidgets as widgets
 from IPython.display import display
-from mdp4e import MDP, policy_evaluation
-from notebook import *
-from utils4e import *
+
+# Flexible imports so this module works in script/package contexts
+try:
+    from .mdp4e import MDP, policy_evaluation
+    from .utils4e import *  # noqa: F403
+except Exception:
+    import sys as _sys
+
+    _src_dir = Path(__file__).resolve().parents[1]
+    if str(_src_dir) not in _sys.path:
+        _sys.path.append(str(_src_dir))
+    from week6.mdp4e import MDP, policy_evaluation  # type: ignore
+    from week6.utils4e import *  # type: ignore  # noqa: F403
+
+try:
+    from notebook import *  # type: ignore  # noqa: F403
+except Exception:
+
+    def make_plot_grid_step_function(columns: int, rows: int, U):  # type: ignore
+        def _noop(iteration: int) -> None:
+            return None
+
+        return _noop
+
+    def make_visualize(slider):  # type: ignore
+        def _noop(Visualize: bool = False, time_step: str = "0") -> None:
+            return None
+
+        return _noop
+
 
 warnings.filterwarnings("ignore")
 
@@ -270,22 +301,27 @@ class PassiveTDAgent:
     True
     """
 
-    def __init__(self, pi, mdp, alpha=None):
-        self.pi = pi
-        self.U = dict.fromkeys(mdp.states, 0.0)
-        self.Ns = dict.fromkeys(mdp.states, 0)
-        self.s = None
-        self.a = None
-        self.r = None
-        self.gamma = mdp.gamma
+    def __init__(
+        self,
+        pi: Mapping[tuple[int, int], tuple[int, int] | None],
+        mdp: MDP,
+        alpha: Callable[[int], float] | None = None,
+    ) -> None:
+        self.pi: Mapping[tuple[int, int], tuple[int, int] | None] = pi
+        self.U: dict[tuple[int, int], float] = dict.fromkeys(mdp.states or [], 0.0)  # type: ignore[assignment]
+        self.Ns: dict[tuple[int, int], int] = dict.fromkeys(mdp.states or [], 0)  # type: ignore[assignment]
+        self.s: tuple[int, int] | None = None
+        self.a: tuple[int, int] | None = None
+        self.r: float | None = None
+        self.gamma: float = mdp.gamma
         self.terminals = mdp.terminals
 
         if alpha:
-            self.alpha = alpha
+            self.alpha: Callable[[int], float] = alpha
         else:
             self.alpha = lambda n: 1 / (1 + n)  # udacity video
 
-    def __call__(self, percept):
+    def __call__(self, percept: tuple[tuple[int, int], float]) -> tuple[int, int] | None:
         s1, r1 = self.update_state(percept)
         pi, U, Ns, s, r = self.pi, self.U, self.Ns, self.s, self.r
         alpha, gamma, terminals = self.alpha, self.gamma, self.terminals
@@ -293,17 +329,15 @@ class PassiveTDAgent:
             U[s1] = r1
         if s is not None:
             Ns[s] += 1
-            U[s] += alpha(Ns[s]) * (r + gamma * U[s1] - U[s])
+            U[s] += alpha(Ns[s]) * (r + gamma * U[s1] - U[s])  # type: ignore[operator]
         if s1 in terminals:
             self.s = self.a = self.r = None
         else:
             self.s, self.a, self.r = s1, pi[s1], r1
         return self.a
 
-    def update_state(self, percept):
-        """To be overridden in most cases. The default case
-        assumes the percept to be of type (state, reward).
-        """
+    def update_state(self, percept: tuple[tuple[int, int], float]) -> tuple[tuple[int, int], float]:
+        """Default: percept is (state, reward)."""
         return percept
 
 

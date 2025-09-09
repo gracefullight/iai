@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Provides some utilities widely used by other modules"""
 
 import bisect
@@ -7,8 +9,10 @@ import functools
 import heapq
 import os.path
 import random
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from itertools import chain, combinations
 from statistics import mean
+from typing import Any, TypeVar
 
 import numpy as np
 
@@ -19,6 +23,9 @@ import numpy as np
 # PriorityQueue is implemented here
 
 
+T = TypeVar("T")
+
+
 class PriorityQueue:
     """A Queue in which the minimum (or maximum) element (as determined by f and order) is returned first.
     If order is 'min', the item with minimum f(x) is
@@ -26,8 +33,8 @@ class PriorityQueue:
     Also supports dict-like lookup.
     """
 
-    def __init__(self, order="min", f=lambda x: x):
-        self.heap = []
+    def __init__(self, order: str = "min", f: Callable[[Any], Any] = lambda x: x):
+        self.heap: list[tuple[Any, Any]] = []
 
         if order == "min":
             self.f = f
@@ -36,16 +43,16 @@ class PriorityQueue:
         else:
             raise ValueError("Order must be either 'min' or 'max'.")
 
-    def append(self, item):
+    def append(self, item: Any) -> None:
         """Insert item at its correct position."""
         heapq.heappush(self.heap, (self.f(item), item))
 
-    def extend(self, items):
+    def extend(self, items: Iterable[Any]) -> None:
         """Insert each item in items at its correct position."""
         for item in items:
             self.append(item)
 
-    def pop(self):
+    def pop(self) -> Any:
         """Pop and return the item (with min or max f(x) value)
         depending on the order.
         """
@@ -53,15 +60,15 @@ class PriorityQueue:
             return heapq.heappop(self.heap)[1]
         raise Exception("Trying to pop from empty PriorityQueue.")
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return current capacity of PriorityQueue."""
         return len(self.heap)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         """Return True if the key is in PriorityQueue."""
         return any([item == key for _, item in self.heap])
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         """Returns the first value associated with key in PriorityQueue.
         Raises KeyError if key is not present.
         """
@@ -70,7 +77,7 @@ class PriorityQueue:
                 return value
         raise KeyError(str(key) + " is not in the priority queue")
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         """Delete the first occurrence of key."""
         try:
             del self.heap[[item == key for _, item in self.heap].index(True)]
@@ -83,12 +90,12 @@ class PriorityQueue:
 # Functions on Sequences and Iterables
 
 
-def sequence(iterable):
+def sequence(iterable: Iterable[Any]) -> Sequence[Any] | tuple[Any, ...]:
     """Converts iterable to sequence, if it is not already one."""
     return iterable if isinstance(iterable, collections.abc.Sequence) else tuple([iterable])
 
 
-def remove_all(item, seq):
+def remove_all(item: Any, seq: Any) -> Any:
     """Return a copy of seq (or string) with all occurrences of item removed."""
     if isinstance(seq, str):
         return seq.replace(item, "")
@@ -99,17 +106,17 @@ def remove_all(item, seq):
     return [x for x in seq if x != item]
 
 
-def unique(seq):
+def unique(seq: Iterable[Any]) -> list[Any]:
     """Remove duplicate elements from seq. Assumes hashable elements."""
     return list(set(seq))
 
 
-def count(seq):
+def count(seq: Iterable[Any]) -> int:
     """Count the number of items in sequence that are interpreted as true."""
     return sum(map(bool, seq))
 
 
-def multimap(items):
+def multimap(items: Iterable[tuple[Any, Any]]) -> dict[Any, list[Any]]:
     """Given (key, val) pairs, return {key: [val, ....], ...}."""
     result = collections.defaultdict(list)
     for key, val in items:
@@ -117,14 +124,14 @@ def multimap(items):
     return dict(result)
 
 
-def multimap_items(mmap):
+def multimap_items(mmap: Mapping[Any, list[Any]]) -> Iterable[tuple[Any, Any]]:
     """Yield all (key, val) pairs stored in the multimap."""
     for key, vals in mmap.items():
         for val in vals:
             yield key, val
 
 
-def product(numbers):
+def product(numbers: Iterable[int]) -> int:
     """Return the product of the numbers, e.g. product([2, 3, 10]) == 60"""
     result = 1
     for x in numbers:
@@ -132,55 +139,55 @@ def product(numbers):
     return result
 
 
-def first(iterable, default=None):
+def first(iterable: Iterable[T], default: T | None = None) -> T | None:
     """Return the first element of an iterable; or default."""
     return next(iter(iterable), default)
 
 
-def is_in(elt, seq):
+def is_in(elt: Any, seq: Iterable[Any]) -> bool:
     """Similar to (elt in seq), but compares with 'is', not '=='."""
     return any(x is elt for x in seq)
 
 
-def mode(data):
+def mode(data: Iterable[Any]) -> Any:
     """Return the most common data item. If there are ties, return any one of them."""
     [(item, count)] = collections.Counter(data).most_common(1)
     return item
 
 
-def power_set(iterable):
+def power_set(iterable: Iterable[Any]) -> list[tuple[Any, ...]]:
     """power_set([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"""
     s = list(iterable)
     return list(chain.from_iterable(combinations(s, r) for r in range(len(s) + 1)))[1:]
 
 
-def extend(s, var, val):
+def extend(s: Mapping[str, Any], var: str, val: Any) -> dict[str, Any]:
     """Copy dict s and extend it by setting var to val; return copy."""
     return {**s, var: val}
 
 
-def flatten(seqs):
-    return sum(seqs, [])
+def flatten(seqs: Iterable[Iterable[Any]]) -> list[Any]:
+    return sum(seqs, [])  # type: ignore[arg-type]
 
 
 # ______________________________________________________________________________
 # argmin and argmax
 
 
-identity = lambda x: x
+identity: Callable[[T], T] = lambda x: x
 
 
-def argmin_random_tie(seq, key=identity):
+def argmin_random_tie(seq: Sequence[T], key: Callable[[T], Any] = identity) -> T:
     """Return a minimum element of seq; break ties at random."""
     return min(shuffled(seq), key=key)
 
 
-def argmax_random_tie(seq, key=identity):
+def argmax_random_tie(seq: Sequence[T], key: Callable[[T], Any] = identity) -> T:
     """Return an element with highest fn(seq[i]) score; break ties at random."""
     return max(shuffled(seq), key=key)
 
 
-def shuffled(iterable):
+def shuffled(iterable: Iterable[T]) -> list[T]:
     """Randomly shuffle a copy of iterable."""
     items = list(iterable)
     random.shuffle(items)
@@ -191,7 +198,9 @@ def shuffled(iterable):
 # ______________________________________________________________________________
 
 
-def histogram(values, mode=0, bin_function=None):
+def histogram(
+    values: Iterable[Any], mode: int = 0, bin_function: Callable[[Any], Any] | None = None
+) -> list[tuple[Any, int]]:
     """Return a list of (value, count) pairs, summarizing the input values.
     Sorted by increasing value, or if mode=1, by decreasing count.
     If bin_function is given, map it over values first.
@@ -199,7 +208,7 @@ def histogram(values, mode=0, bin_function=None):
     if bin_function:
         values = map(bin_function, values)
 
-    bins = {}
+    bins: dict[Any, int] = {}
     for val in values:
         bins[val] = bins.get(val, 0) + 1
 
@@ -208,7 +217,7 @@ def histogram(values, mode=0, bin_function=None):
     return sorted(bins.items())
 
 
-def element_wise_product(x, y):
+def element_wise_product(x: Any, y: Any) -> Any:
     if hasattr(x, "__iter__") and hasattr(y, "__iter__"):
         assert len(x) == len(y)
         return [element_wise_product(_x, _y) for _x, _y in zip(x, y, strict=False)]
@@ -217,7 +226,7 @@ def element_wise_product(x, y):
     raise Exception("Inputs must be in the same size!")
 
 
-def vector_add(a, b):
+def vector_add(a: tuple[int, int] | list[Any], b: tuple[int, int] | list[Any]) -> Any:
     """Component-wise addition of two vectors."""
     if not (a and b):
         return a or b
@@ -230,22 +239,22 @@ def vector_add(a, b):
         raise Exception("Inputs must be in the same size!")
 
 
-def scalar_vector_product(x, y):
+def scalar_vector_product(x: Any, y: Any) -> Any:
     """Return vector as a product of a scalar and a vector recursively."""
     return [scalar_vector_product(x, _y) for _y in y] if hasattr(y, "__iter__") else x * y
 
 
-def map_vector(f, x):
+def map_vector(f: Callable[[Any], Any], x: Any) -> Any:
     """Apply function f to iterable x."""
     return [map_vector(f, _x) for _x in x] if hasattr(x, "__iter__") else list(map(f, [x]))[0]
 
 
-def probability(p):
+def probability(p: float) -> bool:
     """Return true with probability p."""
     return p > random.uniform(0.0, 1.0)
 
 
-def weighted_sample_with_replacement(n, seq, weights):
+def weighted_sample_with_replacement(n: int, seq: Sequence[T], weights: Sequence[float]) -> list[T]:
     """Pick n samples from seq at random, with replacement, with the
     probability of each element in proportion to its corresponding
     weight.
@@ -255,16 +264,16 @@ def weighted_sample_with_replacement(n, seq, weights):
     return [sample() for _ in range(n)]
 
 
-def weighted_sampler(seq, weights):
+def weighted_sampler(seq: Sequence[T], weights: Sequence[float]) -> Callable[[], T]:
     """Return a random-sample function that picks from seq weighted by weights."""
-    totals = []
+    totals: list[float] = []
     for w in weights:
         totals.append(w + totals[-1] if totals else w)
 
     return lambda: seq[bisect.bisect(totals, random.uniform(0, totals[-1]))]
 
 
-def weighted_choice(choices):
+def weighted_choice(choices: Iterable[tuple[T, float]]) -> tuple[T, float] | None:
     """A weighted version of random.choice"""
     # NOTE: Should be replaced by random.choices if we port to Python 3.6
 
@@ -277,7 +286,7 @@ def weighted_choice(choices):
         upto += w
 
 
-def rounder(numbers, d=4):
+def rounder(numbers: Iterable[float], d: int = 4) -> list[float]:
     """Round a single number, or sequence of numbers, to d decimal places."""
     if isinstance(numbers, (int, float)):
         return round(numbers, d)
@@ -420,19 +429,26 @@ def rbf_kernel(x, y=None, gamma=None):
 # Grid Functions
 
 
-orientations = EAST, NORTH, WEST, SOUTH = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+EAST: tuple[int, int]
+NORTH: tuple[int, int]
+WEST: tuple[int, int]
+SOUTH: tuple[int, int]
+EAST, NORTH, WEST, SOUTH = (1, 0), (0, 1), (-1, 0), (0, -1)
+orientations: list[tuple[int, int]] = [EAST, NORTH, WEST, SOUTH]
 turns = LEFT, RIGHT = (+1, -1)
 
 
-def turn_heading(heading, inc, headings=orientations):
+def turn_heading(
+    heading: tuple[int, int], inc: int, headings: Sequence[tuple[int, int]] = orientations
+) -> tuple[int, int]:
     return headings[(headings.index(heading) + inc) % len(headings)]
 
 
-def turn_right(heading):
+def turn_right(heading: tuple[int, int]) -> tuple[int, int]:
     return turn_heading(heading, RIGHT)
 
 
-def turn_left(heading):
+def turn_left(heading: tuple[int, int]) -> tuple[int, int]:
     return turn_heading(heading, LEFT)
 
 

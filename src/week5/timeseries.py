@@ -4,6 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error
@@ -34,7 +35,9 @@ train, test = dataset[0:train_size, :], dataset[train_size : len(dataset), :]
 print(len(train), len(test))
 
 
-def create_dataset(dataset: np.ndarray, look_back: int = 1) -> tuple[np.ndarray, np.ndarray]:
+def create_dataset(
+    dataset: NDArray[np.float32], look_back: int = 1
+) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
     """Create X,Y pairs from a 2D numpy time-series array.
 
     Args:
@@ -47,7 +50,7 @@ def create_dataset(dataset: np.ndarray, look_back: int = 1) -> tuple[np.ndarray,
         (n_examples, look_back) and dataY has shape (n_examples,).
 
     """
-    dataX: list[np.ndarray] = []
+    dataX: list[NDArray[np.float32]] = []
     dataY: list[float] = []
     for i in range(len(dataset) - look_back - 1):
         a = dataset[i : (i + look_back), 0]

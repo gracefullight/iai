@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import random
+import sys as _sys
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
-from heading import *
-from mdp4e import *
+
+# Single import style that works for `python src/week6/rl.py`
+_SRC_DIR = Path(__file__).resolve().parents[1]  # points to src/
+if str(_SRC_DIR) not in _sys.path:
+    _sys.path.append(str(_SRC_DIR))
+
+from week6.heading import *  # noqa: F403
+from week6.mdp4e import *  # noqa: F403
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 img = plt.imread(ASSETS_DIR / "grid.png")
@@ -18,7 +27,7 @@ R_s = -0.05
 Use R_s to define the maps according to the map given as a nested list, where the external list represents the rows (top down order) and the inner list represents the columns (left to right order). The grey block is marked as None.
 Use a pair (a,b) to represent a cell with the first element a representing the column number and the second element b representing the row number. These numbers start from 0. For example, (2,3) represents the cell at the 3rd column and 4th row in the map.
 """
-maps = [
+maps: list[list[float | None]] = [
     [R_s, R_s, R_s, R_s, +1],
     [R_s, None, R_s, R_s, -1],
     [R_s, R_s, R_s, R_s, R_s],
@@ -48,9 +57,9 @@ east = (1, 0)
 print(sequential_decision_environment.states)
 
 # code-swgment 1: Set the intial values of states
-U_init = dict.fromkeys(sequential_decision_environment.states, 0)
-U_init[4, 2] = -1
-U_init[4, 3] = 1
+U_init: dict[tuple[int, int], float] = dict.fromkeys(sequential_decision_environment.states, 0.0)
+U_init[4, 2] = -1.0
+U_init[4, 3] = 1.0
 
 print(U_init)
 
@@ -68,10 +77,6 @@ temp = sorted(U_values_value_iteration.keys())
 print("State, estimated U value using value iteration and policy iteration:\n")
 for x in temp:
     print(f"{x},\t{U_values_value_iteration[x]},\t{U_values_policy_iteration[x]}")
-
-
-State = tuple[int, int]
-Action = tuple[int, int]
 
 
 class PassiveDUEAgent:
@@ -138,7 +143,7 @@ class PassiveADPAgent:
         def __init__(
             self,
             init: State,
-            actlist: list[Action] | dict[State, list[Action]],
+            actlist: Sequence[Action] | Mapping[State, Sequence[Action]],
             terminals: Iterable[State],
             gamma: float,
             states: Iterable[State] | None,
@@ -223,7 +228,7 @@ class QLearningAgent:
     ) -> None:
         self.gamma: float = mdp.gamma
         self.terminals: set[State] = set(mdp.terminals)
-        self.all_act: Sequence[Action] = mdp.actlist  # global action list
+        self.all_act: Sequence[Action] = cast("Sequence[Action]", mdp.actlist)  # global action list
         self.Ne: int = Ne
         self.Rplus: float = Rplus
         self.Q: defaultdict[tuple[State, Action | None], float] = defaultdict(float)
@@ -243,7 +248,9 @@ class QLearningAgent:
         return self.Rplus if n < self.Ne else u
 
     def actions_in_state(self, state: State) -> list[Action | None]:
-        return [None] if state in self.terminals else self.all_act  # or mdp.actions(state)
+        if state in self.terminals:
+            return [None]
+        return cast("list[Action | None]", list(self.all_act))  # or mdp.actions(state)
 
     def __call__(self, percept: tuple[State, float]) -> Action | None:
         s1, r1 = self.update_state(percept)
@@ -272,13 +279,15 @@ class QLearningAgent:
 
 
 # code-segment 5: Define a function to trial one sequence
-def run_single_trial(agent_program, mdp):
+def run_single_trial(
+    agent_program: Callable[[tuple[State, float]], Action | None] | Any, mdp: MDP
+) -> None:
     """Execute trial for given agent_program
     and mdp. mdp should be an instance of subclass
     of mdp.MDP
     """
 
-    def take_single_action(mdp, s, a):
+    def take_single_action(mdp: MDP, s: State, a: Action | None) -> State:
         """Select outcome of taking action a
         in state s. Weighted Sampling.
         """
@@ -292,7 +301,7 @@ def run_single_trial(agent_program, mdp):
         return state
 
     current_state = mdp.init
-    sequence = []
+    sequence: list[tuple[State, float]] = []
     while True:
         current_reward = mdp.R(current_state)
         percept = (current_state, current_reward)
@@ -310,12 +319,14 @@ def run_single_trial(agent_program, mdp):
 
 
 # code-segment 6: Define a function to convert the Q Values above into U estimates.
-def convert_value_estimate(states):
-    U = defaultdict(lambda: -1000.0)  # Very Large Negative Value for Comparison see below.
+def convert_value_estimate(
+    states: Mapping[tuple[State, Action | None], float],
+) -> dict[State, float]:
+    U: defaultdict[State, float] = defaultdict(lambda: -1000.0)  # Large negative for comparison
     for state_action, value in states.items():
-        state, action = state_action
+        state, _action = state_action
         U[state] = max(U[state], value)
-    return U
+    return dict(U)
 
 
 num_run = 2000

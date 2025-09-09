@@ -7,11 +7,16 @@ dictionary of {state: number} pairs. We then define the value_iteration
 and policy_iteration algorithms.
 """
 
+from __future__ import annotations
 import random
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 
 import numpy as np
-from utils4e import orientations, turn_left, turn_right, vector_add
+from .utils4e import orientations, turn_left, turn_right, vector_add
+
+State = tuple[int, int]
+Action = tuple[int, int]
 
 
 class MDP:
@@ -25,15 +30,24 @@ class MDP:
     """
 
     def __init__(
-        self, init, actlist, terminals, transitions=None, reward=None, states=None, gamma=0.9
-    ):
+        self,
+        init: State,
+        actlist: list[Action] | Mapping[State, list[Action]],
+        terminals: Iterable[State],
+        transitions: Mapping[State, Mapping[Action, list[tuple[float, State]]]] | None = None,
+        reward: dict[State, float] | None = None,
+        states: Iterable[State] | None = None,
+        gamma: float = 0.9,
+    ) -> None:
         if not (0 < gamma <= 1):
             raise ValueError("An MDP must have 0 < gamma <= 1")
 
         # collect states from transitions table if not passed.
-        self.states = states or self.get_states_from_transitions(transitions)
+        self.states: Iterable[State] | None = states or self.get_states_from_transitions(
+            transitions
+        )
 
-        self.init = init
+        self.init: State = init
 
         if isinstance(actlist, list):
             # if actlist is a list, all states have the same actions
@@ -43,22 +57,24 @@ class MDP:
             # if actlist is a dict, different actions for each state
             self.actlist = actlist
 
-        self.terminals = terminals
-        self.transitions = transitions or {}
+        self.terminals: Iterable[State] = terminals
+        self.transitions: Mapping[State, Mapping[Action, list[tuple[float, State]]]] = (
+            transitions or {}
+        )
         if not self.transitions:
             print("Warning: Transition table is empty.")
 
-        self.gamma = gamma
+        self.gamma: float = gamma
 
-        self.reward = reward or dict.fromkeys(self.states, 0)
+        self.reward: dict[State, float] = reward or dict.fromkeys(self.states or [], 0)  # type: ignore[assignment]
 
         # self.check_consistency()
 
-    def R(self, state):
+    def R(self, state: State) -> float:
         """Return a numeric reward for this state."""
         return self.reward[state]
 
-    def T(self, state, action):
+    def T(self, state: State, action: Action | None) -> list[tuple[float, State]]:
         """Transition model. From a state and an action, return a list
         of (probability, result-state) pairs.
         """
@@ -66,7 +82,7 @@ class MDP:
             raise ValueError("Transition model is missing")
         return self.transitions[state][action]
 
-    def actions(self, state):
+    def actions(self, state: State) -> list[Action | None]:
         """Return a list of actions that can be performed in this state. By default, a
         fixed list of actions, except for terminal states. Override this
         method if you need to specialize by state.
@@ -75,7 +91,9 @@ class MDP:
             return [None]
         return self.actlist
 
-    def get_states_from_transitions(self, transitions):
+    def get_states_from_transitions(
+        self, transitions: Mapping[State, Mapping[Action, list[tuple[float, State]]]] | None
+    ) -> Iterable[State] | None:
         if isinstance(transitions, dict):
             s1 = set(transitions.keys())
             s2 = set(
@@ -113,10 +131,18 @@ class MDP:
 class MDP2(MDP):
     """Inherits from MDP. Handles terminal states, and transitions to and from terminal states better."""
 
-    def __init__(self, init, actlist, terminals, transitions, reward=None, gamma=0.9):
+    def __init__(
+        self,
+        init: State,
+        actlist: list[Action] | Mapping[State, list[Action]],
+        terminals: Iterable[State],
+        transitions: Mapping[State, Mapping[Action, list[tuple[float, State]]]],
+        reward: dict[State, float] | None = None,
+        gamma: float = 0.9,
+    ) -> None:
         MDP.__init__(self, init, actlist, terminals, transitions, reward, gamma=gamma)
 
-    def T(self, state, action):
+    def T(self, state: State, action: Action | None) -> list[tuple[float, State]]:
         if action is None:
             return [(0.0, state)]
         return self.transitions[state][action]
@@ -129,16 +155,25 @@ class GridMDP(MDP):
     An action is an (x, y) unit vector; e.g. (1, 0) means move east.
     """
 
-    def __init__(self, grid, terminals, gamma=0.9, intended=0.8, left=0.1, right=0.1, init=(0, 0)):
+    def __init__(
+        self,
+        grid: list[list[float | None]],
+        terminals: Iterable[State],
+        gamma: float = 0.9,
+        intended: float = 0.8,
+        left: float = 0.1,
+        right: float = 0.1,
+        init: State = (0, 0),
+    ) -> None:
         grid.reverse()  # because we want row 0 on bottom, not on top
-        reward = {}
-        states = set()
-        self.rows = len(grid)
-        self.cols = len(grid[0])
-        self.grid = grid
-        self.left = left
-        self.right = right
-        self.intended = intended
+        reward: dict[State, float] = {}
+        states: set[State] = set()
+        self.rows: int = len(grid)
+        self.cols: int = len(grid[0])
+        self.grid: list[list[float | None]] = grid
+        self.left: float = left
+        self.right: float = right
+        self.intended: float = intended
         for x in range(self.cols):
             for y in range(self.rows):
                 if grid[y][x]:
@@ -146,8 +181,8 @@ class GridMDP(MDP):
                     # print((x,y),states)
                     reward[(x, y)] = grid[y][x]
         self.states = states
-        actlist = orientations
-        transitions = {}
+        actlist: list[Action] = orientations
+        transitions: dict[State, dict[Action, list[tuple[float, State]]]] = {}
         for s in states:
             transitions[s] = {}
             for a in actlist:
@@ -163,7 +198,9 @@ class GridMDP(MDP):
             gamma=gamma,
         )
 
-    def calculate_T(self, state, action):  ## version in original mdp.py
+    def calculate_T(
+        self, state: State, action: Action | None
+    ) -> list[tuple[float, State]]:  ## version in original mdp.py
         if action:
             return [
                 (self.intended, self.go(state, action)),
@@ -172,15 +209,15 @@ class GridMDP(MDP):
             ]
         return [(0.0, state)]
 
-    def T(self, state, action):
+    def T(self, state: State, action: Action | None) -> list[tuple[float, State]]:
         return self.transitions[state][action] if action else [(0.0, state)]
 
-    def go(self, state, direction):
+    def go(self, state: State, direction: Action) -> State:
         """Return the state that results from going in this direction."""
         state1 = tuple(vector_add(state, direction))
-        return state1 if state1 in self.states else state
+        return state1 if self.states and state1 in self.states else state
 
-    def to_grid(self, mapping):
+    def to_grid(self, mapping: Mapping[State, float | None]) -> list[list[float | None]]:
         """Convert a mapping from (x, y) to v into a [[..., v, ...]] grid."""
         return list(
             reversed(
@@ -188,8 +225,14 @@ class GridMDP(MDP):
             )
         )
 
-    def to_arrows(self, policy):
-        chars = {(1, 0): ">", (0, 1): "^", (-1, 0): "<", (0, -1): "v", None: "."}
+    def to_arrows(self, policy: Mapping[State, Action | None]) -> list[list[str]]:
+        chars: dict[Action | None, str] = {
+            (1, 0): ">",
+            (0, 1): "^",
+            (-1, 0): "<",
+            (0, -1): "v",
+            None: ".",
+        }
         return self.to_grid({s: chars[a] for (s, a) in policy.items()})
 
 
@@ -210,10 +253,10 @@ sequential_decision_environment = GridMDP([[-0.04, -0.04, -0.04, +1],
 # 16.1.3 The Bellman equation for utilities
 
 
-def q_value(mdp, s, a, U):
+def q_value(mdp: MDP, s: State, a: Action | None, U: Mapping[State, float]) -> float:
     if not a:
         return mdp.R(s)
-    res = 0
+    res = 0.0
     for p, s_prime in mdp.T(s, a):
         res += p * (mdp.R(s) + mdp.gamma * U[s_prime])
     return res
@@ -226,14 +269,14 @@ def q_value(mdp, s, a, U):
 # 16.2.1 Value Iteration
 
 
-def value_iteration(mdp, epsilon=0.0001):
+def value_iteration(mdp: MDP, epsilon: float = 0.0001) -> dict[State, float]:
     """Solving an MDP by value iteration. [Figure 16.6]"""
-    U1 = dict.fromkeys(mdp.states, 0)
+    U1: dict[State, float] = dict.fromkeys(mdp.states or [], 0)  # type: ignore[assignment]
     R, T, gamma = mdp.R, mdp.T, mdp.gamma
     while True:
-        U = U1.copy()
-        delta = 0
-        for s in mdp.states:
+        U: dict[State, float] = U1.copy()
+        delta = 0.0
+        for s in mdp.states or []:
             # U1[s] = R(s) + gamma * max(sum(p * U[s1] for (p, s1) in T(s, a))
             #                            for a in mdp.actions(s))
             U1[s] = max(q_value(mdp, s, a, U) for a in mdp.actions(s))
@@ -246,29 +289,29 @@ def value_iteration(mdp, epsilon=0.0001):
 # 16.2.2 Policy Iteration
 
 
-def best_policy(mdp, U):
+def best_policy(mdp: MDP, U: Mapping[State, float]) -> dict[State, Action | None]:
     """Given an MDP and a utility function U, determine the best policy,
     as a mapping from state to action.
     """
-    pi = {}
-    for s in mdp.states:
+    pi: dict[State, Action | None] = {}
+    for s in mdp.states or []:
         pi[s] = max(mdp.actions(s), key=lambda a: q_value(mdp, s, a, U))
     return pi
 
 
-def expected_utility(a, s, U, mdp):
+def expected_utility(a: Action | None, s: State, U: Mapping[State, float], mdp: MDP) -> float:
     """The expected utility of doing a in state s, according to the MDP and U."""
     return sum(p * U[s1] for (p, s1) in mdp.T(s, a))
 
 
-def policy_iteration(mdp):
+def policy_iteration(mdp: MDP) -> dict[State, Action | None]:
     """Solve an MDP by policy iteration [Figure 17.7]"""
-    U = dict.fromkeys(mdp.states, 0)
-    pi = {s: random.choice(mdp.actions(s)) for s in mdp.states}
+    U: dict[State, float] = dict.fromkeys(mdp.states or [], 0)  # type: ignore[assignment]
+    pi: dict[State, Action | None] = {s: random.choice(mdp.actions(s)) for s in (mdp.states or [])}
     while True:
         U = policy_evaluation(pi, U, mdp)
         unchanged = True
-        for s in mdp.states:
+        for s in mdp.states or []:
             a_star = max(mdp.actions(s), key=lambda a: q_value(mdp, s, a, U))
             # a = max(mdp.actions(s), key=lambda a: expected_utility(a, s, U, mdp))
             if q_value(mdp, s, a_star, U) > q_value(mdp, s, pi[s], U):
@@ -278,13 +321,15 @@ def policy_iteration(mdp):
             return pi
 
 
-def policy_evaluation(pi, U, mdp, k=20):
+def policy_evaluation(
+    pi: Mapping[State, Action | None], U: dict[State, float], mdp: MDP, k: int = 20
+) -> dict[State, float]:
     """Return an updated utility mapping U from each state in the MDP to its
     utility, using an approximation (modified policy iteration).
     """
     R, T, gamma = mdp.R, mdp.T, mdp.gamma
-    for i in range(k):
-        for s in mdp.states:
+    for _ in range(k):
+        for s in mdp.states or []:
             U[s] = R(s) + gamma * sum(p * U[s1] for (p, s1) in T(s, pi[s]))
     return U
 
