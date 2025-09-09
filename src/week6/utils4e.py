@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-"""Provides some utilities widely used by other modules"""
-
 import bisect
 import collections
 import collections.abc

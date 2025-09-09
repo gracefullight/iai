@@ -8,11 +8,13 @@ and policy_iteration algorithms.
 """
 
 from __future__ import annotations
+
 import random
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 
 import numpy as np
+
 from .utils4e import orientations, turn_left, turn_right, vector_add
 
 State = tuple[int, int]
