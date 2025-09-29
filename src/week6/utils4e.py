@@ -10,9 +10,10 @@ import random
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from itertools import chain, combinations
 from statistics import mean
-from typing import Any, TypeVar
+from typing import Any, TypeVar, IO, TextIO, Tuple, List, Dict, Optional, Union, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 # part1. General data structures and their functions
 # ______________________________________________________________________________
@@ -21,7 +22,7 @@ import numpy as np
 # PriorityQueue is implemented here
 
 
-T = TypeVar("T")
+TV = TypeVar("TV")
 
 
 class PriorityQueue:
@@ -137,7 +138,7 @@ def product(numbers: Iterable[int]) -> int:
     return result
 
 
-def first(iterable: Iterable[T], default: T | None = None) -> T | None:
+def first(iterable: Iterable[TV], default: Optional[TV] = None) -> Optional[TV]:
     """Return the first element of an iterable; or default."""
     return next(iter(iterable), default)
 
@@ -165,27 +166,27 @@ def extend(s: Mapping[str, Any], var: str, val: Any) -> dict[str, Any]:
 
 
 def flatten(seqs: Iterable[Iterable[Any]]) -> list[Any]:
-    return sum(seqs, [])  # type: ignore[arg-type]
+    return [item for seq in seqs for item in seq]
 
 
 # ______________________________________________________________________________
 # argmin and argmax
 
 
-identity: Callable[[T], T] = lambda x: x
+identity: Callable[[TV], TV] = lambda x: x
 
 
-def argmin_random_tie(seq: Sequence[T], key: Callable[[T], Any] = identity) -> T:
+def argmin_random_tie(seq: Sequence[TV], key: Callable[[TV], Any] = identity) -> TV:
     """Return a minimum element of seq; break ties at random."""
     return min(shuffled(seq), key=key)
 
 
-def argmax_random_tie(seq: Sequence[T], key: Callable[[T], Any] = identity) -> T:
+def argmax_random_tie(seq: Sequence[TV], key: Callable[[TV], Any] = identity) -> TV:
     """Return an element with highest fn(seq[i]) score; break ties at random."""
     return max(shuffled(seq), key=key)
 
 
-def shuffled(iterable: Iterable[T]) -> list[T]:
+def shuffled(iterable: Iterable[TV]) -> list[TV]:
     """Randomly shuffle a copy of iterable."""
     items = list(iterable)
     random.shuffle(items)
@@ -224,17 +225,13 @@ def element_wise_product(x: Any, y: Any) -> Any:
     raise Exception("Inputs must be in the same size!")
 
 
-def vector_add(a: tuple[int, int] | list[Any], b: tuple[int, int] | list[Any]) -> Any:
-    """Component-wise addition of two vectors."""
-    if not (a and b):
-        return a or b
-    if hasattr(a, "__iter__") and hasattr(b, "__iter__"):
-        assert len(a) == len(b)
-        return list(map(vector_add, a, b))
-    try:
-        return a + b
-    except TypeError:
-        raise Exception("Inputs must be in the same size!")
+def vector_add(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int]:
+    """Component-wise addition for 2D grid vectors.
+
+    This specialized version matches how GridMDP uses it: both inputs are
+    2D integer tuples representing (x, y) directions or states.
+    """
+    return (a[0] + b[0], a[1] + b[1])
 
 
 def scalar_vector_product(x: Any, y: Any) -> Any:
@@ -252,7 +249,7 @@ def probability(p: float) -> bool:
     return p > random.uniform(0.0, 1.0)
 
 
-def weighted_sample_with_replacement(n: int, seq: Sequence[T], weights: Sequence[float]) -> list[T]:
+def weighted_sample_with_replacement(n: int, seq: Sequence[TV], weights: Sequence[float]) -> list[TV]:
     """Pick n samples from seq at random, with replacement, with the
     probability of each element in proportion to its corresponding
     weight.
@@ -262,7 +259,7 @@ def weighted_sample_with_replacement(n: int, seq: Sequence[T], weights: Sequence
     return [sample() for _ in range(n)]
 
 
-def weighted_sampler(seq: Sequence[T], weights: Sequence[float]) -> Callable[[], T]:
+def weighted_sampler(seq: Sequence[TV], weights: Sequence[float]) -> Callable[[], TV]:
     """Return a random-sample function that picks from seq weighted by weights."""
     totals: list[float] = []
     for w in weights:
@@ -271,28 +268,28 @@ def weighted_sampler(seq: Sequence[T], weights: Sequence[float]) -> Callable[[],
     return lambda: seq[bisect.bisect(totals, random.uniform(0, totals[-1]))]
 
 
-def weighted_choice(choices: Iterable[tuple[T, float]]) -> tuple[T, float] | None:
+def weighted_choice(choices: Iterable[tuple[TV, float]]) -> tuple[TV, float] | None:
     """A weighted version of random.choice"""
     # NOTE: Should be replaced by random.choices if we port to Python 3.6
 
     total = sum(w for _, w in choices)
-    r = random.uniform(0, total)
-    upto = 0
+    r = random.uniform(0.0, total)
+    upto: float = 0.0
     for c, w in choices:
         if upto + w >= r:
             return c, w
         upto += w
+    return None
 
 
-def rounder(numbers: Iterable[float], d: int = 4) -> list[float]:
-    """Round a single number, or sequence of numbers, to d decimal places."""
+def rounder(numbers: float | Iterable[float], d: int = 4) -> float | list[float]:
+    """Round a single number or a sequence of numbers to d decimal places."""
     if isinstance(numbers, (int, float)):
-        return round(numbers, d)
-    constructor = type(numbers)  # Can be list, set, tuple, etc.
-    return constructor(rounder(n, d) for n in numbers)
+        return round(float(numbers), d)
+    return [round(float(n), d) for n in numbers]
 
 
-def num_or_str(x):  # TODO: rename as `atom`
+def num_or_str(x: str) -> Union[int, float, str]:  # TODO: rename as `atom`
     """The argument is a string; convert to a number if
     possible, or strip it.
     """
@@ -305,51 +302,63 @@ def num_or_str(x):  # TODO: rename as `atom`
             return str(x).strip()
 
 
-def euclidean_distance(x, y):
-    return np.sqrt(sum((_x - _y) ** 2 for _x, _y in zip(x, y, strict=False)))
+def euclidean_distance(x: Iterable[float], y: Iterable[float]) -> float:
+    return float(np.sqrt(sum((_x - _y) ** 2 for _x, _y in zip(x, y, strict=False))))
 
 
-def manhattan_distance(x, y):
-    return sum(abs(_x - _y) for _x, _y in zip(x, y, strict=False))
+def manhattan_distance(x: Iterable[float], y: Iterable[float]) -> float:
+    return float(sum(abs(_x - _y) for _x, _y in zip(x, y, strict=False)))
 
 
-def hamming_distance(x, y):
-    return sum(_x != _y for _x, _y in zip(x, y, strict=False))
+def hamming_distance(x: Iterable[Any], y: Iterable[Any]) -> int:
+    return int(sum(_x != _y for _x, _y in zip(x, y, strict=False)))
 
 
-def rms_error(x, y):
-    return np.sqrt(ms_error(x, y))
+def rms_error(x: Iterable[float], y: Iterable[float]) -> float:
+    return float(np.sqrt(ms_error(x, y)))
 
 
-def ms_error(x, y):
-    return mean((x - y) ** 2 for x, y in zip(x, y, strict=False))
+def ms_error(x: Iterable[float], y: Iterable[float]) -> float:
+    return float(mean((x - y) ** 2 for x, y in zip(x, y, strict=False)))
 
 
-def mean_error(x, y):
-    return mean(abs(x - y) for x, y in zip(x, y, strict=False))
+def mean_error(x: Iterable[float], y: Iterable[float]) -> float:
+    return float(mean(abs(x - y) for x, y in zip(x, y, strict=False)))
 
 
-def mean_boolean_error(x, y):
-    return mean(_x != _y for _x, _y in zip(x, y, strict=False))
+def mean_boolean_error(x: Iterable[Any], y: Iterable[Any]) -> float:
+    return float(mean(_x != _y for _x, _y in zip(x, y, strict=False)))
 
 
 # part3. Neural network util functions
 # ______________________________________________________________________________
 
 
-def cross_entropy_loss(x, y):
+def cross_entropy_loss(x: Sequence[float], y: Sequence[float]) -> float:
     """Cross entropy loss function. x and y are 1D iterable objects."""
-    return (-1.0 / len(x)) * sum(
-        x * np.log(_y) + (1 - _x) * np.log(1 - _y) for _x, _y in zip(x, y, strict=False)
+    return float(
+        (-1.0 / len(x))
+        * sum(_x * float(np.log(_y)) + (1 - _x) * float(np.log(1 - _y)) for _x, _y in zip(x, y, strict=False))
     )
 
 
-def mean_squared_error_loss(x, y):
+def mean_squared_error_loss(x: Sequence[float], y: Sequence[float]) -> float:
     """Min square loss function. x and y are 1D iterable objects."""
-    return (1.0 / len(x)) * sum((_x - _y) ** 2 for _x, _y in zip(x, y, strict=False))
+    return float((1.0 / len(x)) * sum((_x - _y) ** 2 for _x, _y in zip(x, y, strict=False)))
 
 
-def normalize(dist):
+from typing import overload
+
+
+@overload
+def normalize(dist: Dict[Any, float]) -> Dict[Any, float]: ...
+
+
+@overload
+def normalize(dist: Sequence[float]) -> list[float]: ...
+
+
+def normalize(dist: Union[Dict[Any, float], Sequence[float]]) -> Union[Dict[Any, float], list[float]]:
     """Multiply each number by a constant such that the sum is 1.0"""
     if isinstance(dist, dict):
         total = sum(dist.values())
@@ -361,64 +370,71 @@ def normalize(dist):
     return [(n / total) for n in dist]
 
 
-def random_weights(min_value, max_value, num_weights):
+def random_weights(min_value: float, max_value: float, num_weights: int) -> list[float]:
     return [random.uniform(min_value, max_value) for _ in range(num_weights)]
 
 
-def conv1D(x, k):
+def conv1D(x: NDArray[np.floating[Any]], k: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
     """1D convolution. x: input vector; K: kernel vector."""
-    return np.convolve(x, k, mode="same")
+    return cast(NDArray[np.floating[Any]], np.convolve(x, k, mode="same"))
 
 
-def gaussian_kernel(size=3):
-    return [gaussian((size - 1) / 2, 0.1, x) for x in range(size)]
+def gaussian_kernel(size: int = 3) -> list[float]:
+    return [gaussian((size - 1) / 2, 0.1, float(x)) for x in range(size)]
 
 
-def gaussian_kernel_1D(size=3, sigma=0.5):
-    return [gaussian((size - 1) / 2, sigma, x) for x in range(size)]
+def gaussian_kernel_1D(size: int = 3, sigma: float = 0.5) -> list[float]:
+    return [gaussian((size - 1) / 2, sigma, float(x)) for x in range(size)]
 
 
-def gaussian_kernel_2D(size=3, sigma=0.5):
+def gaussian_kernel_2D(size: int = 3, sigma: float = 0.5) -> NDArray[np.floating[Any]]:
     x, y = np.mgrid[-size // 2 + 1 : size // 2 + 1, -size // 2 + 1 : size // 2 + 1]
     g = np.exp(-((x**2 + y**2) / (2.0 * sigma**2)))
-    return g / g.sum()
+    return cast(NDArray[np.floating[Any]], g / g.sum())
 
 
-def step(x):
+def step(x: float) -> int:
     """Return activation value of x with sign function."""
     return 1 if x >= 0 else 0
 
 
-def gaussian(mean, st_dev, x):
+def gaussian(mean: float, st_dev: float, x: float) -> float:
     """Given the mean and standard deviation of a distribution, it returns the probability of x."""
-    return 1 / (np.sqrt(2 * np.pi) * st_dev) * np.exp(-0.5 * (float(x - mean) / st_dev) ** 2)
+    return float(1 / (np.sqrt(2 * np.pi) * st_dev) * np.exp(-0.5 * (float(x - mean) / st_dev) ** 2))
 
 
-def linear_kernel(x, y=None):
+def linear_kernel(x: NDArray[np.floating[Any]], y: Optional[NDArray[np.floating[Any]]] = None) -> NDArray[np.floating[Any]]:
     if y is None:
         y = x
-    return np.dot(x, y.T)
+    return cast(NDArray[np.floating[Any]], np.dot(x, y.T))
 
 
-def polynomial_kernel(x, y=None, degree=2.0):
+def polynomial_kernel(
+    x: NDArray[np.floating[Any]], y: Optional[NDArray[np.floating[Any]]] = None, degree: float = 2.0
+) -> NDArray[np.floating[Any]]:
     if y is None:
         y = x
-    return (1.0 + np.dot(x, y.T)) ** degree
+    return cast(NDArray[np.floating[Any]], (1.0 + np.dot(x, y.T)) ** degree)
 
 
-def rbf_kernel(x, y=None, gamma=None):
+def rbf_kernel(
+    x: NDArray[np.floating[Any]], y: Optional[NDArray[np.floating[Any]]] = None, gamma: Optional[float] = None
+) -> NDArray[np.floating[Any]]:
     """Radial-basis function kernel (aka squared-exponential kernel)."""
     if y is None:
         y = x
     if gamma is None:
         gamma = 1.0 / x.shape[1]  # 1.0 / n_features
-    return np.exp(
-        -gamma
-        * (
-            -2.0 * np.dot(x, y.T)
-            + np.sum(x * x, axis=1).reshape((-1, 1))
-            + np.sum(y * y, axis=1).reshape((1, -1))
-        )
+    return cast(
+        NDArray[np.floating[Any]],
+        np.exp(
+            -gamma
+            * (
+                -2.0 * np.dot(x, y.T)
+                + np.sum(x * x, axis=1).reshape((-1, 1))
+                + np.sum(y * y, axis=1).reshape((1, -1))
+            )
+        ),
     )
 
 
@@ -450,14 +466,14 @@ def turn_left(heading: tuple[int, int]) -> tuple[int, int]:
     return turn_heading(heading, LEFT)
 
 
-def distance(a, b):
+def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
     """The distance between two (x, y) points."""
     xA, yA = a
     xB, yB = b
-    return np.hypot((xA - xB), (yA - yB))
+    return float(np.hypot((xA - xB), (yA - yB)))
 
 
-def distance_squared(a, b):
+def distance_squared(a: tuple[float, float], b: tuple[float, float]) -> float:
     """The square of the distance between two (x, y) points."""
     xA, yA = a
     xB, yB = b
@@ -473,25 +489,26 @@ class injection:
     E.g., `with injection(DataBase=MockDataBase): ...`
     """
 
-    def __init__(self, **kwds):
-        self.new = kwds
+    def __init__(self, **kwds: Any) -> None:
+        self.new: Dict[str, Any] = kwds  # type: ignore[assignment]
 
-    def __enter__(self):
+    def __enter__(self) -> "injection":
         self.old = {v: globals()[v] for v in self.new}
         globals().update(self.new)
+        return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type: Any, value: Any, traceback: Any) -> None:
         globals().update(self.old)
 
 
-def memoize(fn, slot=None, maxsize=32):
+def memoize(fn: Callable[..., Any], slot: Optional[str] = None, maxsize: int = 32) -> Callable[..., Any]:
     """Memoize fn: make it remember the computed value for any argument list.
     If slot is specified, store result in that slot of first argument.
     If slot is false, use lru_cache for caching the values.
     """
     if slot:
 
-        def memoized_fn(obj, *args):
+        def memoized_fn(obj: Any, *args: Any) -> Any:
             if hasattr(obj, slot):
                 return getattr(obj, slot)
             val = fn(obj, *args)
@@ -500,33 +517,36 @@ def memoize(fn, slot=None, maxsize=32):
     else:
 
         @functools.lru_cache(maxsize=maxsize)
-        def memoized_fn(*args):
+        def memoized_fn(*args: Any) -> Any:
             return fn(*args)
 
     return memoized_fn
 
 
-def name(obj):
+def name(obj: Any) -> str:
     """Try to find some reasonable name for the object."""
+    cls = getattr(obj, "__class__", None)
     return (
-        getattr(obj, "name", 0)
-        or getattr(obj, "__name__", 0)
-        or getattr(getattr(obj, "__class__", 0), "__name__", 0)
+        getattr(obj, "name", "")
+        or getattr(obj, "__name__", "")
+        or (getattr(cls, "__name__", "") if cls is not None else "")
         or str(obj)
     )
 
 
-def isnumber(x):
+def isnumber(x: Any) -> bool:
     """Is x a number?"""
     return hasattr(x, "__int__")
 
 
-def issequence(x):
+def issequence(x: Any) -> bool:
     """Is x a sequence?"""
     return isinstance(x, collections.abc.Sequence)
 
 
-def print_table(table, header=None, sep="   ", numfmt="{}"):
+def print_table(
+    table: list[list[Any]], header: Optional[list[Any]] = None, sep: str = "   ", numfmt: str = "{}"
+) -> None:
     """Print a list of lists as a table, so that columns line up nicely.
     header, if specified, will be printed as the first row.
     numfmt is the format for all numbers; you might want e.g. '{:.2f}'.
@@ -554,14 +574,14 @@ def print_table(table, header=None, sep="   ", numfmt="{}"):
         )
 
 
-def open_data(name, mode="r"):
+def open_data(name: str, mode: str = "r") -> IO[str]:
     aima_root = os.path.dirname(__file__)
     aima_file = os.path.join(aima_root, *["aima-data", name])
 
     return open(aima_file, mode=mode)
 
 
-def failure_test(algorithm, tests):
+def failure_test(algorithm: Callable[[Any], Any], tests: Iterable[tuple[Any, Any]]) -> float:
     """Grades the given algorithm based on how many tests it passes.
     Most algorithms have arbitrary output on correct execution, which is difficult
     to check for correctness. On the other hand, a lot of algorithms output something
@@ -585,123 +605,123 @@ class Expr:
     Expr('-', x) creates a unary; Expr('+', x, 1) creates a binary.
     """
 
-    def __init__(self, op, *args):
-        self.op = str(op)
-        self.args = args
+    def __init__(self, op: Any, *args: Any) -> None:
+        self.op: str = str(op)
+        self.args: tuple[Any, ...] = args
 
     # Operator overloads
-    def __neg__(self):
+    def __neg__(self) -> "Expr":
         return Expr("-", self)
 
-    def __pos__(self):
+    def __pos__(self) -> "Expr":
         return Expr("+", self)
 
-    def __invert__(self):
+    def __invert__(self) -> "Expr":
         return Expr("~", self)
 
-    def __add__(self, rhs):
+    def __add__(self, rhs: Any) -> "Expr":
         return Expr("+", self, rhs)
 
-    def __sub__(self, rhs):
+    def __sub__(self, rhs: Any) -> "Expr":
         return Expr("-", self, rhs)
 
-    def __mul__(self, rhs):
+    def __mul__(self, rhs: Any) -> "Expr":
         return Expr("*", self, rhs)
 
-    def __pow__(self, rhs):
+    def __pow__(self, rhs: Any) -> "Expr":
         return Expr("**", self, rhs)
 
-    def __mod__(self, rhs):
+    def __mod__(self, rhs: Any) -> "Expr":
         return Expr("%", self, rhs)
 
-    def __and__(self, rhs):
+    def __and__(self, rhs: Any) -> "Expr":
         return Expr("&", self, rhs)
 
-    def __xor__(self, rhs):
+    def __xor__(self, rhs: Any) -> "Expr":
         return Expr("^", self, rhs)
 
-    def __rshift__(self, rhs):
+    def __rshift__(self, rhs: Any) -> "Expr":
         return Expr(">>", self, rhs)
 
-    def __lshift__(self, rhs):
+    def __lshift__(self, rhs: Any) -> "Expr":
         return Expr("<<", self, rhs)
 
-    def __truediv__(self, rhs):
+    def __truediv__(self, rhs: Any) -> "Expr":
         return Expr("/", self, rhs)
 
-    def __floordiv__(self, rhs):
+    def __floordiv__(self, rhs: Any) -> "Expr":
         return Expr("//", self, rhs)
 
-    def __matmul__(self, rhs):
+    def __matmul__(self, rhs: Any) -> "Expr":
         return Expr("@", self, rhs)
 
-    def __or__(self, rhs):
+    def __or__(self, rhs: Any) -> Any:
         """Allow both P | Q, and P |'==>'| Q."""
         if isinstance(rhs, Expression):
             return Expr("|", self, rhs)
         return PartialExpr(rhs, self)
 
     # Reverse operator overloads
-    def __radd__(self, lhs):
+    def __radd__(self, lhs: Any) -> "Expr":
         return Expr("+", lhs, self)
 
-    def __rsub__(self, lhs):
+    def __rsub__(self, lhs: Any) -> "Expr":
         return Expr("-", lhs, self)
 
-    def __rmul__(self, lhs):
+    def __rmul__(self, lhs: Any) -> "Expr":
         return Expr("*", lhs, self)
 
-    def __rdiv__(self, lhs):
+    def __rdiv__(self, lhs: Any) -> "Expr":
         return Expr("/", lhs, self)
 
-    def __rpow__(self, lhs):
+    def __rpow__(self, lhs: Any) -> "Expr":
         return Expr("**", lhs, self)
 
-    def __rmod__(self, lhs):
+    def __rmod__(self, lhs: Any) -> "Expr":
         return Expr("%", lhs, self)
 
-    def __rand__(self, lhs):
+    def __rand__(self, lhs: Any) -> "Expr":
         return Expr("&", lhs, self)
 
-    def __rxor__(self, lhs):
+    def __rxor__(self, lhs: Any) -> "Expr":
         return Expr("^", lhs, self)
 
-    def __ror__(self, lhs):
+    def __ror__(self, lhs: Any) -> "Expr":
         return Expr("|", lhs, self)
 
-    def __rrshift__(self, lhs):
+    def __rrshift__(self, lhs: Any) -> "Expr":
         return Expr(">>", lhs, self)
 
-    def __rlshift__(self, lhs):
+    def __rlshift__(self, lhs: Any) -> "Expr":
         return Expr("<<", lhs, self)
 
-    def __rtruediv__(self, lhs):
+    def __rtruediv__(self, lhs: Any) -> "Expr":
         return Expr("/", lhs, self)
 
-    def __rfloordiv__(self, lhs):
+    def __rfloordiv__(self, lhs: Any) -> "Expr":
         return Expr("//", lhs, self)
 
-    def __rmatmul__(self, lhs):
+    def __rmatmul__(self, lhs: Any) -> "Expr":
         return Expr("@", lhs, self)
 
-    def __call__(self, *args):
+    def __call__(self, *args: Any) -> "Expr":
         """Call: if 'f' is a Symbol, then f(0) == Expr('f', 0)."""
         if self.args:
             raise ValueError("Can only do a call for a Symbol, not an Expr")
         return Expr(self.op, *args)
 
     # Equality and repr
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         """'x == y' evaluates to True or False; does not build an Expr."""
         return isinstance(other, Expr) and self.op == other.op and self.args == other.args
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         return isinstance(other, Expr) and str(self) < str(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.op) ^ hash(self.args)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         op = self.op
         args = [str(arg) for arg in self.args]
         if op.isidentifier():  # f(x) or f(x, y)
@@ -721,17 +741,17 @@ Number = (int, float, complex)
 Expression = (Expr, Number)
 
 
-def Symbol(name):
+def Symbol(name: str) -> Expr:
     """A Symbol is just an Expr with no args."""
     return Expr(name)
 
 
-def symbols(names):
+def symbols(names: str) -> tuple[Expr, ...]:
     """Return a tuple of Symbols; names is a comma/whitespace delimited str."""
     return tuple(Symbol(name) for name in names.replace(",", " ").split())
 
 
-def subexpressions(x):
+def subexpressions(x: Any) -> Iterable[Any]:
     """Yield the subexpressions of an Expression (including x itself)."""
     yield x
     if isinstance(x, Expr):
@@ -739,7 +759,7 @@ def subexpressions(x):
             yield from subexpressions(arg)
 
 
-def arity(expression):
+def arity(expression: Any) -> int:
     """The number of sub-expressions in this expression."""
     if isinstance(expression, Expr):
         return len(expression.args)
@@ -753,17 +773,19 @@ def arity(expression):
 class PartialExpr:
     """Given 'P |'==>'| Q, first form PartialExpr('==>', P), then combine with Q."""
 
-    def __init__(self, op, lhs):
+    def __init__(self, op: str, lhs: Any) -> None:
+        self.op: str
+        self.lhs: Any
         self.op, self.lhs = op, lhs
 
-    def __or__(self, rhs):
+    def __or__(self, rhs: Any) -> Expr:
         return Expr(self.op, self.lhs, rhs)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"PartialExpr('{self.op}', {self.lhs})"
 
 
-def expr(x):
+def expr(x: Any) -> Any:
     """Shortcut to create an Expression. x is a str in which:
     - identifiers are automatically defined as Symbols.
     - ==> is treated as an infix |'==>'|, as are <== and <=>.
@@ -776,10 +798,10 @@ def expr(x):
     return x
 
 
-infix_ops = ["==>", "<==", "<=>"]
+infix_ops: list[str] = ["==>", "<==", "<=>"]
 
 
-def expr_handle_infix_ops(x):
+def expr_handle_infix_ops(x: str) -> str:
     """Given a str, return a new str with ==> replaced by |'==>'|, etc.
     >>> expr_handle_infix_ops("P ==> Q")
     "P |'==>'| Q"
@@ -789,24 +811,28 @@ def expr_handle_infix_ops(x):
     return x
 
 
-class defaultkeydict(collections.defaultdict):
+class defaultkeydict(collections.defaultdict[Any, Any]):
     """Like defaultdict, but the default_factory is a function of the key.
     >>> d = defaultkeydict(len)
     ... d["four"]
     4
     """
 
-    def __missing__(self, key):
-        self[key] = result = self.default_factory(key)
+    def __init__(self, default_factory: Callable[[Any], Any]) -> None:
+        super().__init__()
+        self.key_default_factory: Callable[[Any], Any] = default_factory
+
+    def __missing__(self, key: Any) -> Any:
+        self[key] = result = self.key_default_factory(key)
         return result
 
 
-class hashabledict(dict):
+class hashabledict(dict[Any, Any]):
     """Allows hashing by representing a dictionary as tuple of key:value pairs.
     May cause problems as the hash value may change during runtime.
     """
 
-    def __hash__(self):
+    def __hash__(self) -> int:  # type: ignore[override]
         return 1
 
 
@@ -817,14 +843,14 @@ class hashabledict(dict):
 class MCT_Node:
     """Node in the Monte Carlo search tree, keeps track of the children states."""
 
-    def __init__(self, parent=None, state=None, U=0, N=0):
+    def __init__(self, parent: Any = None, state: Any = None, U: float = 0.0, N: int = 0) -> None:
         self.__dict__.update(parent=parent, state=state, U=U, N=N)
-        self.children = {}
-        self.actions = None
+        self.children: Dict[Any, Any] = {}
+        self.actions: Any = None
 
 
-def ucb(n, C=1.4):
-    return np.inf if n.N == 0 else n.U / n.N + C * np.sqrt(np.log(n.parent.N) / n.N)
+def ucb(n: Any, C: float = 1.4) -> float:
+    return float(np.inf if n.N == 0 else n.U / n.N + C * np.sqrt(np.log(n.parent.N) / n.N))
 
 
 # ______________________________________________________________________________

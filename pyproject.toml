@@ -9,6 +9,7 @@ dependencies = [
     "matplotlib>=3.10.3",
     "networkx>=3.5",
     # TensorFlow 2.16.1 requires numpy <=1.26.4
+    "nltk>=3.9.1",
     "numpy==1.26.4",
     "openml>=0.15.1",
     "pandas>=2.3.1",
@@ -16,6 +17,8 @@ dependencies = [
     "seaborn>=0.13.2",
     # Pin to latest stable TF (2.16.x) compatible with Python 3.12; avoid experimental 2.20 pre-release causing mutex crash on 3.13
     "tensorflow==2.16.1",
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
 ]
 
 [dependency-groups]
